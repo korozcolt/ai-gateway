@@ -4,7 +4,9 @@ Capa de IA para Laravel 13: **conexiones a proveedores en base de datos con toke
 (OpenAI-compatible → OpenRouter, NVIDIA Build, OpenAI, Azure v1, Mistral, Groq…; Gemini; Fake), peticiones **multimodales**
 (texto, imágenes, PDF), medición de uso/costo por llamada y excepciones que nunca llevan prompts, respuestas ni claves.
 
-Extraído de `thrive-engine`; lo usan `notaria-core` y `thrive-engine`. Requiere **PostgreSQL** (secuencias, `jsonb`, triggers).
+Requiere **PostgreSQL** (secuencias, `jsonb`, triggers) y Laravel 13 / PHP 8.3+.
+
+> **English:** a Laravel 13 gateway for AI providers. Provider connections and their API tokens live in the database (encrypted with a dedicated key, never in `.env`); OpenAI-compatible drivers (OpenRouter, NVIDIA Build, OpenAI, Azure, Mistral, Groq…), Gemini and a fake driver; multimodal requests (text, images, PDFs); per-call usage/cost metering; failures expose closed reason codes only, never prompts, responses or keys. See the sections below (in Spanish) for installation, seeding and usage.
 
 ## Instalación
 
@@ -78,3 +80,7 @@ Una clase que implemente `AiProviderInterface` (o extienda `HttpProvider`) y una
 ## Pruebas
 
 Requieren PostgreSQL (`ai_gateway_test`; ver `phpunit.xml`): `vendor/bin/pest`. `FakeAiProvider` permite probar sin red.
+
+## Licencia
+
+MIT. Ver [LICENSE](LICENSE).

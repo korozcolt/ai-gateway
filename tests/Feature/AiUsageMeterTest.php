@@ -225,7 +225,7 @@ it('keeps the ledger row when the caller transaction rolls back (queued job path
             }
         });
     } catch (AiProviderException) {
-        // the check-in turn is rolled back
+        // the caller's work is rolled back
     }
 
     Queue::assertPushed(RecordAiUsageEvent::class, 1);

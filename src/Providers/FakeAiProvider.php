@@ -62,8 +62,8 @@ final class FakeAiProvider implements AiProviderInterface
         }
 
         return new AiResponse(
-            text: 'Gracias por compartirlo.',
-            json: ['reply' => 'Gracias por compartirlo.', 'done' => false],
+            text: 'fake response',
+            json: ['text' => 'fake response'],
             inputTokens: 0,
             outputTokens: 0,
             latencyMs: 0,
