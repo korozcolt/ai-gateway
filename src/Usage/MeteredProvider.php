@@ -3,12 +3,14 @@
 namespace Korbytes\AiGateway\Usage;
 
 use Closure;
+use Korbytes\AiGateway\AiFailure;
 use Korbytes\AiGateway\Contracts\AiProviderInterface;
 use Korbytes\AiGateway\Dto\AiRequest;
 use Korbytes\AiGateway\Dto\AiResponse;
 use Korbytes\AiGateway\Dto\AiUsage;
 use Korbytes\AiGateway\Exceptions\AiProviderException;
 use Korbytes\AiGateway\ModelPrice;
+use Throwable;
 
 /**
  * Decorator applied inside AiDriverRegistry::make(): records one ledger event per call, on
@@ -26,6 +28,8 @@ final class MeteredProvider implements AiProviderInterface
         private readonly int $providerId,
         private readonly Closure $priceFor,
         private readonly UsageRecorder $recorder,
+        /** @var list<string> model ids the connection declares; a call for any other model is rejected before it is sent */
+        private readonly array $allowedModels = [],
     ) {}
 
     public function key(): string
@@ -37,11 +41,22 @@ final class MeteredProvider implements AiProviderInterface
     {
         $started = hrtime(true);
 
+        if (! in_array($request->params->model, $this->allowedModels, true)) {
+            $this->record($request, new AiUsage, AiFailure::UnknownModel->value, 0);
+
+            throw new AiProviderException(AiFailure::UnknownModel);
+        }
+
         try {
             $response = $this->inner->complete($request);
         } catch (AiProviderException $e) {
             // Failures record the real elapsed time so timeouts are not understated in latency reports.
             $this->record($request, $e->usage ?? new AiUsage, $e->reasonCode, intdiv(hrtime(true) - $started, self::NS_PER_MS));
+
+            throw $e;
+        } catch (Throwable $e) {
+            // Any other failure of the inner driver still leaves a ledger row; the original exception is rethrown.
+            $this->record($request, new AiUsage, 'internal_error', intdiv(hrtime(true) - $started, self::NS_PER_MS));
 
             throw $e;
         }
@@ -53,15 +68,23 @@ final class MeteredProvider implements AiProviderInterface
 
     private function record(AiRequest $request, AiUsage $usage, string $outcome, int $latencyMs): ?float
     {
-        $price = ($this->priceFor)($request->params->model);
-        $cost = $price?->cost($usage);
+        try {
+            $price = ($this->priceFor)($request->params->model);
+            $cost = $price?->cost($usage);
+        } catch (Throwable $e) {
+            // A malformed price must never replace the call result or the original exception.
+            report($e);
+            $price = null;
+            $cost = null;
+        }
 
         $this->recorder->record([
             'ai_provider_id' => $this->providerId,
-            'context_type' => $request->contextType,
+            'context_type' => $request->contextType === null ? null : mb_substr($request->contextType, 0, 60),
             'context_id' => $request->contextId,
-            'model' => $request->params->model,
-            'purpose' => $request->purpose,
+            // Truncated to the column widths: an over-long app label must not make the queued insert fail.
+            'model' => mb_substr($request->params->model, 0, 120),
+            'purpose' => mb_substr($request->purpose, 0, 40),
             'input_tokens' => $usage->inputTokens,
             'output_tokens' => $usage->outputTokens,
             'thinking_tokens' => $usage->thinkingTokens,

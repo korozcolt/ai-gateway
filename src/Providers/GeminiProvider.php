@@ -11,6 +11,7 @@ use Korbytes\AiGateway\Dto\AiMessage;
 use Korbytes\AiGateway\Dto\AiRequest;
 use Korbytes\AiGateway\Dto\AiUsage;
 use Korbytes\AiGateway\Exceptions\AiProviderException;
+use Korbytes\AiGateway\RequestOptions;
 
 /**
  * Google Gemini native generateContent (see 03-SPIKE-provider-formats.md). No tools, grounding or
@@ -37,14 +38,36 @@ final class GeminiProvider extends HttpProvider
 
         $url = rtrim($this->connection->baseUrl, '/').'/models/'.$request->params->model.':generateContent';
 
-        return $http->withHeaders(['x-goog-api-key' => (string) $this->connection->apiKey])->post($url, [
+        return $http->withHeaders(['x-goog-api-key' => (string) $this->connection->apiKey])->post($url, $this->withOptions([
             'systemInstruction' => ['parts' => [['text' => $request->system]]],
             'contents' => array_map(fn (AiMessage $message) => [
                 'role' => $message->role === 'assistant' ? 'model' : 'user',
                 'parts' => $this->parts($message),
             ], $request->messages),
             'generationConfig' => $generation,
-        ]);
+        ]));
+    }
+
+    /**
+     * Connection options (e.g. safetySettings) go after the app's fields, which always win on a collision.
+     *
+     * @param  array<string, mixed>  $body
+     * @return array<string, mixed>
+     */
+    private function withOptions(array $body): array
+    {
+        return $body + RequestOptions::sanitize($this->connection->requestOptions);
+    }
+
+    /** @param  array<string, mixed>|null  $body */
+    protected function classify(int $status, ?array $body): AiFailure
+    {
+        // Google answers a revoked or mistyped key with 400 INVALID_ARGUMENT / API_KEY_INVALID, not 401.
+        if ($status === 400 && collect((array) data_get($body, 'error.details', []))->contains(fn ($d): bool => ($d['reason'] ?? null) === 'API_KEY_INVALID')) {
+            return AiFailure::Auth;
+        }
+
+        return parent::classify($status, $body);
     }
 
     /** @return list<array<string, mixed>> */

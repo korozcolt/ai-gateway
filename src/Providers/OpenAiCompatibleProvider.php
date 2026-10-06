@@ -40,12 +40,20 @@ final class OpenAiCompatibleProvider extends HttpProvider
             $messages[] = ['role' => $message->role, 'content' => $this->content($message)];
         }
 
+        // Reasoning models (OpenAI o-series, gpt-5...) reject `max_tokens` and a custom temperature: a model entry can
+        // declare {"max_tokens_param": "max_completion_tokens", "temperature": false} to adapt the request.
+        $modelOptions = $this->connection->modelOptions[$request->params->model] ?? [];
+        $tokenParam = ($modelOptions['max_tokens_param'] ?? 'max_tokens') === 'max_completion_tokens' ? 'max_completion_tokens' : 'max_tokens';
+
         $base = [
             'model' => $request->params->model,
             'messages' => $messages,
-            'temperature' => $request->params->temperature,
-            'max_tokens' => $request->params->maxOutputTokens,
+            $tokenParam => $request->params->maxOutputTokens,
         ];
+
+        if (($modelOptions['temperature'] ?? true) !== false) {
+            $base['temperature'] = $request->params->temperature;
+        }
 
         if ($request->jsonSchema !== null && $this->connection->supportsJsonSchema) {
             $base['response_format'] = [
@@ -54,8 +62,8 @@ final class OpenAiCompatibleProvider extends HttpProvider
             ];
         }
 
-        // Connection options go first so the fields the app controls always win; the denylist removes them anyway.
-        $body = RequestOptions::sanitize($this->connection->requestOptions) + $base;
+        // The app's fields come first so they always win on a key collision; the denylist removes them from options anyway.
+        $body = $base + RequestOptions::sanitize($this->connection->requestOptions);
 
         return $http->withToken((string) $this->connection->apiKey)
             ->post(rtrim($this->connection->baseUrl, '/').'/chat/completions', $body);

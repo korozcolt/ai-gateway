@@ -16,6 +16,9 @@ class RecordAiUsageEvent implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue;
 
+    /** Never wait for the caller's transaction: the row must exist even when the caller rolls back. */
+    public bool $afterCommit = false;
+
     /** @param array<string, int|float|string|null> $event */
     public function __construct(public array $event) {}
 

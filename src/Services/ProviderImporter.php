@@ -2,6 +2,7 @@
 
 namespace Korbytes\AiGateway\Services;
 
+use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use Korbytes\AiGateway\AiDriverRegistry;
 use Korbytes\AiGateway\Models\AiProvider;
@@ -42,6 +43,16 @@ final class ProviderImporter
      */
     public function import(array $providers, bool $rotateKeys = false): array
     {
+        // All or nothing: a validation failure on entry N must not leave entries 1..N-1 committed.
+        return DB::transaction(fn (): array => $this->importAll($providers, $rotateKeys));
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $providers
+     * @return array{created: int, updated: int, keys_set: int}
+     */
+    private function importAll(array $providers, bool $rotateKeys): array
+    {
         $result = ['created' => 0, 'updated' => 0, 'keys_set' => 0];
 
         foreach ($providers as $entry) {
@@ -63,7 +74,9 @@ final class ProviderImporter
 
             $isNew = $provider === null;
             $provider = $provider ?? new AiProvider;
-            $provider->fill($attributes)->save();
+            // An existing connection only changes what the entry states: settings an admin changed
+            // afterwards (is_active, budget...) survive a re-import that omits them.
+            $provider->fill($isNew ? $attributes : array_intersect_key($attributes, $entry))->save();
             $isNew ? $result['created']++ : $result['updated']++;
 
             $key = $entry['api_key'] ?? null;

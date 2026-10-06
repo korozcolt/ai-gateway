@@ -13,6 +13,8 @@ final readonly class AiConnection
         public bool $supportsJsonSchema,
         /** @var array<string, mixed> extra request body fields (never secrets); sanitized by the driver */
         public array $requestOptions = [],
+        /** @var array<string, array<string, mixed>> per-model driver options keyed by model id (e.g. max_tokens_param, temperature) */
+        public array $modelOptions = [],
     ) {}
 
     /** @return array<string, mixed> */

@@ -346,6 +346,7 @@ it('passes the connection request options through the registry', function () {
     $provider = AiProvider::factory()->nvidia()->withKey(DRIVER_KEY)->create([
         'base_url' => 'https://openrouter.ai/api/v1',
         'request_options' => ['provider' => ['zdr' => true]],
+        'models' => [['id' => 'the-model', 'input_price_usd_per_million' => 1, 'output_price_usd_per_million' => 2]],
     ]);
 
     app(AiDriverRegistry::class)->make($provider)->complete(driverRequest());

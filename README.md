@@ -73,6 +73,14 @@ Errores: `AiProviderException` con `reasonCode` cerrado (`AiFailure`: auth, rate
 content_filtered, server_error, connection, bad_response, missing_credentials, unknown_driver, unknown_provider,
 provider_inactive, unknown_model). Nunca incluye texto del prompt, de la respuesta ni la clave.
 
+## Modelos de razonamiento y opciones por modelo
+
+Cada modelo declarado en `models` puede llevar opciones del driver. Para modelos que rechazan `max_tokens` o una temperatura
+personalizada (p. ej. OpenAI o-series / gpt-5): `{"id": "o3", "max_tokens_param": "max_completion_tokens", "temperature": false}`.
+Solo se pueden llamar los modelos declarados en la conexión (`AiFailure::UnknownModel` si no); así el costo siempre se calcula
+con un precio conocido. `request_options` se envía en el cuerpo (OpenAI-compatible y Gemini, p. ej. `safetySettings`), pero
+nunca sobreescribe los campos que controla la aplicación.
+
 ## Nuevo driver
 
 Una clase que implemente `AiProviderInterface` (o extienda `HttpProvider`) y una línea en `config('ai-gateway.drivers')`.

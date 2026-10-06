@@ -14,6 +14,7 @@ enum AiFailure: string
     case Connection = 'connection';
     case BadResponse = 'bad_response';
     case MissingCredentials = 'missing_credentials';
+    case CredentialsUnavailable = 'credentials_unavailable';
     case UnknownDriver = 'unknown_driver';
     case UnknownProvider = 'unknown_provider';
     case ProviderInactive = 'provider_inactive';
