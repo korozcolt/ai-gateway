@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Documentation: Packagist installation, Tests badge, expanded license section; copyright holder aligned with the other Korozcolt packages.
+
 ## [0.1.0] - 2026-10-06
 
 First public release. Extracted from the AI layer of a KOR Bytes production project and generalized.

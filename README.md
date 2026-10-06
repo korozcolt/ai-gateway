@@ -3,10 +3,13 @@
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/korozcolt/ai-gateway.svg?style=flat-square)](https://packagist.org/packages/korozcolt/ai-gateway)
 [![Total Downloads](https://img.shields.io/packagist/dt/korozcolt/ai-gateway.svg?style=flat-square)](https://packagist.org/packages/korozcolt/ai-gateway)
 [![License](https://img.shields.io/packagist/l/korozcolt/ai-gateway.svg?style=flat-square)](https://packagist.org/packages/korozcolt/ai-gateway)
+[![Tests](https://img.shields.io/github/actions/workflow/status/korozcolt/ai-gateway/tests.yml?branch=main&label=tests&style=flat-square)](https://github.com/korozcolt/ai-gateway/actions/workflows/tests.yml)
 
 A multi-provider AI gateway for Laravel. **Provider connections and their API tokens live in your database** (tokens encrypted with a dedicated key), so adding the tenth provider never touches `.env`. One contract, interchangeable drivers (OpenAI-compatible APIs such as **OpenRouter** and **NVIDIA Build**, **Gemini**), **multimodal** requests (text, images, PDFs), per-call **usage and cost metering**, and failures that expose closed reason codes only, never prompts, responses or keys.
 
 Developed and used in production projects at **KOR Bytes S.A.S.** and published so anyone can evaluate and use it.
+
+**Available on Packagist:** [`korozcolt/ai-gateway`](https://packagist.org/packages/korozcolt/ai-gateway) · **Source:** [github.com/korozcolt/ai-gateway](https://github.com/korozcolt/ai-gateway) · **License:** [MIT](LICENSE) · **Latest release:** see [Releases](https://github.com/korozcolt/ai-gateway/releases)
 
 ## Part of the Korozcolt / KOR Bytes ecosystem
 
@@ -50,6 +53,8 @@ Whether a given model supports vision, PDFs, JSON Schema or tool-free structured
 - **PostgreSQL** (sequence-generated codes, `jsonb` and guard triggers)
 
 ## Installation
+
+The package is published on [Packagist](https://packagist.org/packages/korozcolt/ai-gateway); no extra repository configuration is needed.
 
 ```bash
 composer require korozcolt/ai-gateway
@@ -239,7 +244,9 @@ Never put provider tokens in `.env` or in your repository: use the encrypted dat
 
 ## License
 
-The MIT License (MIT). Please see [License File](LICENSE) for more information.
+Released under the **MIT License** - Copyright (c) 2026 Korozcolt. You may use, copy, modify, merge, publish, distribute, sublicense and sell it, in personal, open-source and commercial projects, provided the copyright and license notice are included in all copies or substantial portions. The software is provided "as is", without warranty of any kind. See the [License File](LICENSE) for the full text.
+
+Third-party AI providers you connect through this package have their own terms of service, pricing and data policies; you are responsible for complying with them.
 
 ---
 

@@ -5,7 +5,11 @@
 3. Commit, then tag and push: `git tag v0.1.0 && git push origin v0.1.0`.
 4. Create the GitHub release from the tag (copy the changelog section).
 
-## First publication on Packagist
+## Packagist
+
+`korozcolt/ai-gateway` is published at https://packagist.org/packages/korozcolt/ai-gateway and updates automatically through the GitHub webhook (a push to `main` refreshes `dev-main`; a pushed tag publishes a release). Packagist shows the README of the latest release, so documentation-only changes appear on the package page after the next tag.
+
+First-time setup, for reference:
 
 1. Sign in at https://packagist.org with your GitHub account.
 2. **Submit** → `https://github.com/korozcolt/ai-gateway`.
