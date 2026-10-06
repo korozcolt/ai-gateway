@@ -1,29 +1,83 @@
-# korbytes/ai-gateway
+# Korozcolt AI Gateway
 
-Capa de IA para Laravel 13: **conexiones a proveedores en base de datos con tokens cifrados**, drivers intercambiables
-(OpenAI-compatible → OpenRouter, NVIDIA Build, OpenAI, Azure v1, Mistral, Groq…; Gemini; Fake), peticiones **multimodales**
-(texto, imágenes, PDF), medición de uso/costo por llamada y excepciones que nunca llevan prompts, respuestas ni claves.
+[![Latest Version on Packagist](https://img.shields.io/packagist/v/korozcolt/ai-gateway.svg?style=flat-square)](https://packagist.org/packages/korozcolt/ai-gateway)
+[![Total Downloads](https://img.shields.io/packagist/dt/korozcolt/ai-gateway.svg?style=flat-square)](https://packagist.org/packages/korozcolt/ai-gateway)
+[![License](https://img.shields.io/packagist/l/korozcolt/ai-gateway.svg?style=flat-square)](https://packagist.org/packages/korozcolt/ai-gateway)
 
-Requiere **PostgreSQL** (secuencias, `jsonb`, triggers) y Laravel 13 / PHP 8.3+.
+A multi-provider AI gateway for Laravel. **Provider connections and their API tokens live in your database** (tokens encrypted with a dedicated key), so adding the tenth provider never touches `.env`. One contract, interchangeable drivers (OpenAI-compatible APIs such as **OpenRouter** and **NVIDIA Build**, **Gemini**), **multimodal** requests (text, images, PDFs), per-call **usage and cost metering**, and failures that expose closed reason codes only, never prompts, responses or keys.
 
-> **English:** a Laravel 13 gateway for AI providers. Provider connections and their API tokens live in the database (encrypted with a dedicated key, never in `.env`); OpenAI-compatible drivers (OpenRouter, NVIDIA Build, OpenAI, Azure, Mistral, Groq…), Gemini and a fake driver; multimodal requests (text, images, PDFs); per-call usage/cost metering; failures expose closed reason codes only, never prompts, responses or keys. See the sections below (in Spanish) for installation, seeding and usage.
+Developed and used in production projects at **KOR Bytes S.A.S.** and published so anyone can evaluate and use it.
 
-## Instalación
+## Part of the Korozcolt / KOR Bytes ecosystem
+
+| Package | What it is |
+|---|---|
+| **ai-gateway** (this package) | AI provider gateway for Laravel |
+| [payments](https://github.com/korozcolt/payments) | Unified payment gateway (Wompi, MercadoPago, ePayco) for Laravel and any PHP project |
+
+Both follow the same conventions: Composer vendor `korozcolt/`, PHP namespace `Korbytes\`, MIT license, Pest + Larastan + Pint, Keep a Changelog, GitHub Actions.
+
+## Features
+
+- **Connections in the database** - URL, token, models, prices and request options per provider, managed with Eloquent, a seed file, or your own admin panel
+- **Encrypted tokens, one key outside the DB** - AES-256-GCM with a dedicated key (never `APP_KEY`), key id and **rotation** with retired keys
+- **Driver architecture** - closed driver list in config; adding a driver is one class and one line
+- **Multimodal** - `AiContentPart::text()`, `::image()`, `::file()` (PDF) mapped to each provider's wire format
+- **Structured output** - JSON Schema via `response_format` when the connection supports it, otherwise requested in the system prompt; decoded JSON on the response
+- **Usage metering** - one append-only ledger row per call (tokens, thinking/cached tokens, price snapshot, cost, provider-reported cost, latency, outcome), written through the queue so it survives a rolled-back caller transaction. No prompt or response content is ever stored
+- **Closed failure taxonomy** - `AiFailure` reason codes; exceptions never carry prompt, response or key text
+- **Per-model options** - e.g. `max_completion_tokens` and no temperature for reasoning models
+- **Seeding** - import providers and tokens from a JSON file kept out of git; tokens are encrypted on insert; idempotent
+- **Testable** - `FakeAiProvider` runs your whole app without network
+- **Laravel 13** - PHP 8.3+, PostgreSQL
+
+## Supported providers
+
+| Provider | Driver | JSON Schema | Images / PDF | Status |
+|---|---|---|---|---|
+| **OpenRouter** | `openai_compatible` | Model dependent (`supports_json_schema`) | Yes (`image_url`, `file` data URIs) | Connected in KOR Bytes projects |
+| **NVIDIA Build** | `openai_compatible` | Off: schema is requested in the system prompt | Model dependent | Connected in KOR Bytes projects. Hosted trial endpoints are for evaluation only: review the provider's retention and training terms before sending personal data |
+| **OpenAI / Azure OpenAI (v1) / Mistral / Groq / any OpenAI-compatible API** | `openai_compatible` | Per connection | Per model | Same wire format; not verified one by one |
+| **Google Gemini** | `gemini` | Yes (`responseJsonSchema`) | Yes (`inlineData`) | Covered by HTTP-faked tests; no live evaluation yet |
+| **Fake** | `fake` | n/a | n/a | Deterministic driver for tests and local work |
+
+Whether a given model supports vision, PDFs, JSON Schema or tool-free structured output depends on the model, not on this package: declare what each connection supports and verify with your own data.
+
+## Requirements
+
+- PHP 8.3+
+- Laravel 13
+- **PostgreSQL** (sequence-generated codes, `jsonb` and guard triggers)
+
+## Installation
 
 ```bash
-composer require korbytes/ai-gateway
+composer require korozcolt/ai-gateway
 php artisan migrate
-php artisan ai:generate-key      # imprime AI_CREDENTIALS_KEY_ID y AI_CREDENTIALS_KEY: cópielos al .env
+php artisan ai:generate-key
 ```
 
-La única variable de entorno es la **clave que cifra los tokens** (`AI_CREDENTIALS_KEY_ID`, `AI_CREDENTIALS_KEY`, y
-`AI_CREDENTIALS_RETIRED_KEYS` en rotación). Los proveedores NO van en `.env`: se guardan en la tabla `ai_providers`.
-La clave debe ser distinta de `APP_KEY` (y de las claves listadas en `ai-gateway.credentials.distinct_from`).
+`ai:generate-key` prints the only environment variables you need; copy them into `.env`:
 
-## Cargar proveedores y tokens (siembra)
+```env
+AI_CREDENTIALS_KEY_ID=...
+AI_CREDENTIALS_KEY=base64:...
+```
 
-Cree `database/seeders/data/ai-providers.json` (ignorado por git) y ejecute `php artisan ai:providers:import`
-o llame a `Korbytes\AiGateway\Database\Seeders\AiProvidersSeeder` desde su `DatabaseSeeder`. Los tokens se cifran al insertarse.
+Optionally publish the configuration and migrations:
+
+```bash
+php artisan vendor:publish --tag=ai-gateway-config
+php artisan vendor:publish --tag=ai-gateway-migrations
+```
+
+See [INSTALL.md](INSTALL.md) for key rotation, database roles and queue notes.
+
+## Quick Start
+
+### 1. Add a provider and its token (seed file)
+
+Create `database/seeders/data/ai-providers.json` (it is git-ignored in the package and should be in yours) and import it. Tokens are encrypted before they reach the database.
 
 ```json
 {
@@ -40,55 +94,159 @@ o llame a `Korbytes\AiGateway\Database\Seeders\AiProvidersSeeder` desde su `Data
 }
 ```
 
-Es idempotente (clave `driver` + `name`); el token existente se conserva salvo `--rotate-keys`. `request_options` no puede
-fijar `model`, `messages`, `tools`, `response_format` ni credenciales. También puede crear conexiones desde su panel
-administrativo con `AiProvider::create([...])` + `$provider->replaceApiKey($token)`.
+```bash
+php artisan ai:providers:import
+```
 
-## Uso
+or call `Korbytes\AiGateway\Database\Seeders\AiProvidersSeeder` from your `DatabaseSeeder`.
+
+### 2. Make a call
 
 ```php
-use Korbytes\AiGateway\AiProviderManager;
 use Korbytes\AiGateway\Dto\{AiContentPart, AiMessage, AiParams, AiRequest};
+use Korbytes\AiGateway\Facades\AiGateway;
 
-$driver = app(AiProviderManager::class)->provider('AIP-0002');   // ya viene envuelto con el medidor de uso
+$driver = AiGateway::provider('AIP-0002');   // already wrapped with the usage meter
 
 $response = $driver->complete(new AiRequest(
-    system: 'Extrae los campos del documento.',
+    system: 'Extract the fields of the document.',
     messages: [new AiMessage('user', [
-        AiContentPart::text('Cédula del compareciente'),
+        AiContentPart::text('Identity card'),
         AiContentPart::image($base64, 'image/jpeg'),
     ])],
     params: new AiParams(model: 'vendor/model', temperature: 0.0, maxOutputTokens: 2000, timeoutSeconds: 60),
     jsonSchema: $schema,
     purpose: 'extraction',
-    contextType: 'tramite',
+    contextType: 'case',
     contextId: 123,
 ));
 
-$response->json;       // array decodificado si se pidió jsonSchema
-$response->costUsd;    // costo calculado con el precio vigente de la conexión
+$response->text;        // raw text
+$response->json;        // decoded array when a jsonSchema was requested (validate it in your app)
+$response->costUsd;     // cost from the connection's price at call time
 ```
 
-Errores: `AiProviderException` con `reasonCode` cerrado (`AiFailure`: auth, rate_limit, timeout, invalid_request,
-content_filtered, server_error, connection, bad_response, missing_credentials, unknown_driver, unknown_provider,
-provider_inactive, unknown_model). Nunca incluye texto del prompt, de la respuesta ni la clave.
+### 3. Handle failures
 
-## Modelos de razonamiento y opciones por modelo
+```php
+use Korbytes\AiGateway\Exceptions\AiProviderException;
 
-Cada modelo declarado en `models` puede llevar opciones del driver. Para modelos que rechazan `max_tokens` o una temperatura
-personalizada (p. ej. OpenAI o-series / gpt-5): `{"id": "o3", "max_tokens_param": "max_completion_tokens", "temperature": false}`.
-Solo se pueden llamar los modelos declarados en la conexión (`AiFailure::UnknownModel` si no); así el costo siempre se calcula
-con un precio conocido. `request_options` se envía en el cuerpo (OpenAI-compatible y Gemini, p. ej. `safetySettings`), pero
-nunca sobreescribe los campos que controla la aplicación.
+try {
+    $response = $driver->complete($request);
+} catch (AiProviderException $e) {
+    $e->reasonCode;   // 'rate_limit', 'timeout', 'auth', ...
+}
+```
 
-## Nuevo driver
+## Documentation
 
-Una clase que implemente `AiProviderInterface` (o extienda `HttpProvider`) y una línea en `config('ai-gateway.drivers')`.
+- [Installation Guide](INSTALL.md) - key generation and rotation, database roles, queues
+- [Usage Guide](USAGE.md) - connections, requests, multimodal, structured output, metering, extending
+- [Architecture](docs/ARCHITECTURE.md) - design decisions
+- [Releasing](docs/RELEASING.md) - tagging and Packagist
+- [Changelog](CHANGELOG.md) - version history
 
-## Pruebas
+## Configuration
 
-Requieren PostgreSQL (`ai_gateway_test`; ver `phpunit.xml`): `vendor/bin/pest`. `FakeAiProvider` permite probar sin red.
+### Environment variables
 
-## Licencia
+```env
+AI_CREDENTIALS_KEY_ID=...                 # generated by `php artisan ai:generate-key`
+AI_CREDENTIALS_KEY=base64:...             # must differ from APP_KEY
+AI_CREDENTIALS_RETIRED_KEYS={"id":"base64:..."}   # only while rotating
+```
 
-MIT. Ver [LICENSE](LICENSE).
+Provider tokens are **not** environment variables: they are stored encrypted in `ai_providers`. `config/ai-gateway.php` also exposes `drivers`, `credentials.distinct_from`, `usage.queue` and `seed_file`.
+
+### Failure codes
+
+| Code | Meaning |
+|---|---|
+| `auth` | Invalid or unauthorized credentials (401/402/403, Gemini `API_KEY_INVALID`) |
+| `rate_limit` | 429 |
+| `timeout` | Request timed out (or 202/408/504) |
+| `invalid_request` | Provider rejected the request (400/404/413/416/422) |
+| `content_filtered` | Blocked by the provider's safety filters |
+| `server_error` | 5xx |
+| `connection` | Network failure |
+| `bad_response` | Unparseable or empty provider answer |
+| `missing_credentials` | The connection has no token |
+| `credentials_unavailable` | The token cannot be decrypted (key not configured, rotated without keeping the retired key, or corrupt ciphertext) |
+| `unknown_driver` / `unknown_provider` / `provider_inactive` | Connection could not be resolved |
+| `unknown_model` | The model is not declared in the connection's `models` |
+
+## API Reference
+
+### Facade
+
+```php
+AiGateway::available();                 // codes of active connections
+AiGateway::modelsFor('AIP-0002');       // declared model ids
+AiGateway::connection('AIP-0002');      // AiProvider model (active only)
+AiGateway::provider('AIP-0002');        // metered driver
+```
+
+### DTOs
+
+```php
+new AiRequest(system: string, messages: list<AiMessage>, params: AiParams,
+              jsonSchema: ?array, purpose: string = 'general', contextType: ?string, contextId: ?int);
+new AiParams(model: string, temperature: float, maxOutputTokens: int, timeoutSeconds: int);
+new AiMessage(role: 'user'|'assistant', content: string|list<AiContentPart>);
+```
+
+`AiResponse`: `text`, `json`, `inputTokens`, `outputTokens`, `thinkingTokens`, `cachedTokens`, `latencyMs`, `model`, `finishReason`, `costUsd`, `reportedCostUsd`.
+
+## Extending
+
+```php
+use Korbytes\AiGateway\Providers\HttpProvider;
+
+final class MyProvider extends HttpProvider
+{
+    public function key(): string { return 'my_provider'; }
+    protected function send(PendingRequest $http, AiRequest $request): Response { /* ... */ }
+    protected function parse(array $body): array { /* [text, AiUsage, AiFinishReason] */ }
+}
+
+// config/ai-gateway.php
+'drivers' => [..., 'my_provider' => MyProvider::class],
+```
+
+## Roadmap
+
+- Fallback chain across connections/models (today: do it in your application, see [USAGE.md](USAGE.md))
+- Enforcement of `budget_usd` (stored today for reporting; not enforced)
+- Optional Filament resource to manage connections
+- Wider Laravel/PHP support (v0.x targets Laravel 13 / PHP 8.3)
+
+## Testing
+
+```bash
+composer test
+```
+
+Tests need PostgreSQL (`ai_gateway_test`, see `phpunit.xml.dist`; override locally in an ignored `phpunit.xml`).
+
+## Security
+
+Never put provider tokens in `.env` or in your repository: use the encrypted database store. Keep the seed JSON out of git. If you discover a security issue, please follow [SECURITY.md](SECURITY.md).
+
+## Credits
+
+- [Korozcolt](https://github.com/korozcolt)
+- [All Contributors](../../contributors)
+
+## License
+
+The MIT License (MIT). Please see [License File](LICENSE) for more information.
+
+---
+
+## 🏢 Maintained by KOR Bytes S.A.S.
+
+Need enterprise Laravel development, AI integrations, or SaaS solutions in Colombia and LATAM?
+
+- 🌐 Website: [kor-bytes.com](https://kor-bytes.com)
+- 💬 WhatsApp: [+57 304 397 8157](https://wa.me/573043978157)
+- ✉️ Email: [gerencia@kor-bytes.com](mailto:gerencia@kor-bytes.com)

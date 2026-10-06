@@ -6,6 +6,7 @@ use Korbytes\AiGateway\AiFailure;
 use Korbytes\AiGateway\AiProviderManager;
 use Korbytes\AiGateway\Database\Seeders\AiProvidersSeeder;
 use Korbytes\AiGateway\Exceptions\AiProviderException;
+use Korbytes\AiGateway\Facades\AiGateway;
 use Korbytes\AiGateway\Models\AiProvider;
 use Korbytes\AiGateway\Providers\FakeAiProvider;
 use Korbytes\AiGateway\Services\ProviderImporter;
@@ -122,4 +123,11 @@ it('requires credentials for real drivers but not for the fake one', function ()
 
     FakeAiProvider::reset();
     expect(app(AiDriverRegistry::class)->make(AiProvider::factory()->create())->key())->toBe('fake');
+});
+
+it('exposes the manager through the AiGateway facade', function () {
+    $provider = AiProvider::factory()->create();
+
+    expect(AiGateway::available())->toContain($provider->fresh()->code)
+        ->and(AiGateway::provider($provider->fresh()->code)->key())->toBe('fake');
 });
