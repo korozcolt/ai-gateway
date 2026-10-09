@@ -273,7 +273,7 @@ it('builds connection drivers through the registry from DB connections', functio
 
     $registry = app(AiDriverRegistry::class);
 
-    expect($registry->keys())->toBe(['anthropic', 'fake', 'gemini', 'openai_compatible'])
+    expect($registry->keys())->toBe(['anthropic', 'fake', 'gemini', 'openai', 'openai_compatible'])
         ->and($registry->make($gemini)->key())->toBe('gemini');
 
     expect(fn () => $registry->make($nvidia))->toThrow(AiProviderException::class, 'missing_credentials');
