@@ -131,3 +131,16 @@ it('exposes the manager through the AiGateway facade', function () {
     expect(AiGateway::available())->toContain($provider->fresh()->code)
         ->and(AiGateway::provider($provider->fresh()->code)->key())->toBe('fake');
 });
+
+it('imports the README seed example for the four documented providers', function () {
+    $readme = (string) file_get_contents(dirname(__DIR__, 2).'/README.md');
+
+    expect(preg_match('/```json\s*(\{\s*"providers".*?\})\s*```/s', $readme, $matches))->toBe(1);
+
+    $seed = json_decode($matches[1], true, flags: JSON_THROW_ON_ERROR);
+    $result = app(ProviderImporter::class)->import($seed['providers']);
+
+    expect(array_column($seed['providers'], 'driver'))->toBe(['openai_compatible', 'gemini', 'anthropic', 'openai'])
+        ->and($result['created'])->toBe(4)
+        ->and(AiProvider::query()->count())->toBe(4);
+});

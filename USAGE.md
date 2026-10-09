@@ -59,12 +59,46 @@ $response = $driver->complete(new AiRequest(..., jsonSchema: [
 $response->json;   // array, or null if the model did not return valid JSON
 ```
 
-- `supports_json_schema = true`: sent as `response_format: json_schema` (strict) on OpenAI-compatible APIs, `responseJsonSchema` on Gemini.
+- `supports_json_schema = true`: sent as `response_format: json_schema` (strict) on OpenAI and OpenAI-compatible APIs, a forced tool on Anthropic and `responseJsonSchema` on Gemini.
 - `supports_json_schema = false`: the schema is appended to the system prompt and the answer is decoded (code fences are tolerated).
 
 The gateway decodes JSON but **does not validate it against the schema**: validate in your application (and retry or reject).
 
 Reasoning models can spend the whole token budget thinking and truncate the JSON: raise `maxOutputTokens` and check `finishReason` (`length`).
+
+## Anthropic (Claude)
+
+Driver `anthropic`, base URL `https://api.anthropic.com/v1`.
+
+- Auth is the `x-api-key` header; the `anthropic-version` header is fixed by the driver (`2023-06-01`) and cannot be changed from `request_options`.
+- The system prompt travels in its own `system` field; only `user` and `assistant` messages go in `messages`.
+- `max_tokens` is mandatory in the API: it is your `maxOutputTokens`. Temperature is clamped to 0..1.
+- Structured output: with a `jsonSchema` the driver forces a single tool (`tool_choice`) whose `input_schema` is your schema and returns the tool input as JSON, so `$response->json` is filled. `thinking` cannot be enabled from `request_options` because it is incompatible with a forced tool.
+- Images go as base64 `image` blocks and PDFs as base64 `document` blocks.
+- Usage: `input_tokens` is reported by Anthropic without cache hits; `cachedTokens` is `cache_read_input_tokens`.
+
+## OpenAI (ChatGPT)
+
+Driver `openai`, base URL `https://api.openai.com/v1` (used when the connection has none), Chat Completions API with a Bearer key.
+
+- Reasoning families (`o1`, `o3`, `o4`, `gpt-5`, with or without an organization prefix) default to `max_completion_tokens` and no `temperature`; every other model uses `max_tokens` and `temperature`.
+- Per-model options win over those defaults (see below): e.g. `{"id": "gpt-5-chat", "temperature": true, "max_tokens_param": "max_tokens"}`.
+- `supports_json_schema = true` sends a strict `json_schema` `response_format`; `false` asks for the schema in the system prompt.
+- Use `openai_compatible` for OpenRouter, NVIDIA Build, Azure OpenAI v1, Mistral, Groq...
+
+## Listing and syncing models
+
+Drivers that implement `ListsModels` (`anthropic`, `openai`) can ask the provider which models the account can use:
+
+```php
+use Korbytes\AiGateway\Facades\AiGateway;
+
+if (AiGateway::canListModels('AIP-0001')) {
+    $ids = AiGateway::listModels('AIP-0001');   // list<string>, e.g. ['claude-...', ...]
+}
+```
+
+The package never writes the result into `ai_providers.models`: your application decides which ids to keep and with which prices. Listing is not a completion, so it does not create rows in the usage ledger. Failures use the same closed reason codes (`auth`, `timeout`, `missing_credentials`...). Calling `listModels()` on a connection whose driver cannot list throws `invalid_request`; Gemini and `openai_compatible` do not list models in this version.
 
 ## Per-model options
 

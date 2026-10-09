@@ -5,7 +5,7 @@
 [![License](https://img.shields.io/packagist/l/korozcolt/ai-gateway.svg?style=flat-square)](https://packagist.org/packages/korozcolt/ai-gateway)
 [![Tests](https://img.shields.io/github/actions/workflow/status/korozcolt/ai-gateway/tests.yml?branch=main&label=tests&style=flat-square)](https://github.com/korozcolt/ai-gateway/actions/workflows/tests.yml)
 
-A multi-provider AI gateway for Laravel. **Provider connections and their API tokens live in your database** (tokens encrypted with a dedicated key), so adding the tenth provider never touches `.env`. One contract, interchangeable drivers (OpenAI-compatible APIs such as **OpenRouter** and **NVIDIA Build**, **Gemini**), **multimodal** requests (text, images, PDFs), per-call **usage and cost metering**, and failures that expose closed reason codes only, never prompts, responses or keys.
+A multi-provider AI gateway for Laravel. **Provider connections and their API tokens live in your database** (tokens encrypted with a dedicated key), so adding the tenth provider never touches `.env`. One contract, interchangeable drivers (**Anthropic Claude**, **OpenAI**, OpenAI-compatible APIs such as **OpenRouter** and **NVIDIA Build**, **Gemini**), **multimodal** requests (text, images, PDFs), per-call **usage and cost metering**, and failures that expose closed reason codes only, never prompts, responses or keys.
 
 Developed and used in production projects at **KOR Bytes S.A.S.** and published so anyone can evaluate and use it.
 
@@ -29,7 +29,8 @@ Both follow the same conventions: Composer vendor `korozcolt/`, PHP namespace `K
 - **Structured output** - JSON Schema via `response_format` when the connection supports it, otherwise requested in the system prompt; decoded JSON on the response
 - **Usage metering** - one append-only ledger row per call (tokens, thinking/cached tokens, price snapshot, cost, provider-reported cost, latency, outcome), written through the queue so it survives a rolled-back caller transaction. No prompt or response content is ever stored
 - **Closed failure taxonomy** - `AiFailure` reason codes; exceptions never carry prompt, response or key text
-- **Per-model options** - e.g. `max_completion_tokens` and no temperature for reasoning models
+- **Per-model options** - e.g. `max_completion_tokens` and no temperature for reasoning models (defaulted for OpenAI o-series and gpt-5)
+- **Model listing** - optional `ListsModels` capability (Anthropic, OpenAI) to sync the models an account can use; the app decides which ids to keep
 - **Seeding** - import providers and tokens from a JSON file kept out of git; tokens are encrypted on insert; idempotent
 - **Testable** - `FakeAiProvider` runs your whole app without network
 - **Laravel 13** - PHP 8.3+, PostgreSQL
@@ -40,7 +41,9 @@ Both follow the same conventions: Composer vendor `korozcolt/`, PHP namespace `K
 |---|---|---|---|---|
 | **OpenRouter** | `openai_compatible` | Model dependent (`supports_json_schema`) | Yes (`image_url`, `file` data URIs) | Connected in KOR Bytes projects |
 | **NVIDIA Build** | `openai_compatible` | Off: schema is requested in the system prompt | Model dependent | Connected in KOR Bytes projects. Hosted trial endpoints are for evaluation only: review the provider's retention and training terms before sending personal data |
-| **OpenAI / Azure OpenAI (v1) / Mistral / Groq / any OpenAI-compatible API** | `openai_compatible` | Per connection | Per model | Same wire format; not verified one by one |
+| **Azure OpenAI (v1) / Mistral / Groq / any OpenAI-compatible API** | `openai_compatible` | Per connection | Per model | Same wire format; not verified one by one |
+| **Anthropic Claude** | `anthropic` | Yes (forced tool use, `input_schema`) | Yes (base64 images, PDF documents) | Covered by HTTP-faked tests; no live evaluation yet |
+| **OpenAI (ChatGPT)** | `openai` | Yes (strict `json_schema`) | Yes (`image_url`, `file` data URIs) | Covered by HTTP-faked tests; no live evaluation yet |
 | **Google Gemini** | `gemini` | Yes (`responseJsonSchema`) | Yes (`inlineData`) | Covered by HTTP-faked tests; no live evaluation yet |
 | **Fake** | `fake` | n/a | n/a | Deterministic driver for tests and local work |
 
@@ -86,16 +89,45 @@ Create `database/seeders/data/ai-providers.json` (it is git-ignored in the packa
 
 ```json
 {
-  "providers": [{
-    "name": "OpenRouter",
-    "driver": "openai_compatible",
-    "base_url": "https://openrouter.ai/api/v1",
-    "api_key": "sk-or-...",
-    "supports_json_schema": true,
-    "is_active": true,
-    "request_options": {"provider": {"data_collection": "deny", "zdr": true}},
-    "models": [{"id": "vendor/model", "input_price_usd_per_million": 1.5, "output_price_usd_per_million": 6}]
-  }]
+  "providers": [
+    {
+      "name": "OpenRouter",
+      "driver": "openai_compatible",
+      "base_url": "https://openrouter.ai/api/v1",
+      "api_key": "REPLACE_ME",
+      "supports_json_schema": true,
+      "is_active": true,
+      "request_options": {"provider": {"data_collection": "deny", "zdr": true}},
+      "models": [{"id": "vendor/model", "input_price_usd_per_million": 1.5, "output_price_usd_per_million": 6}]
+    },
+    {
+      "name": "Google Gemini",
+      "driver": "gemini",
+      "base_url": "https://generativelanguage.googleapis.com/v1beta",
+      "api_key": "REPLACE_ME",
+      "supports_json_schema": true,
+      "is_active": true,
+      "models": [{"id": "gemini-model-id", "input_price_usd_per_million": 0.3, "output_price_usd_per_million": 2.5}]
+    },
+    {
+      "name": "Anthropic Claude",
+      "driver": "anthropic",
+      "base_url": "https://api.anthropic.com/v1",
+      "api_key": "REPLACE_ME",
+      "supports_json_schema": true,
+      "is_active": true,
+      "models": [{"id": "claude-model-id", "input_price_usd_per_million": 3, "output_price_usd_per_million": 15}]
+    },
+    {
+      "name": "OpenAI",
+      "driver": "openai",
+      "base_url": "https://api.openai.com/v1",
+      "api_key": "REPLACE_ME",
+      "supports_json_schema": true,
+      "is_active": true,
+      "models": [{"id": "gpt-model-id", "input_price_usd_per_million": 2.5, "output_price_usd_per_million": 10}]
+    }
+  ]
 }
 ```
 
@@ -189,6 +221,8 @@ AiGateway::available();                 // codes of active connections
 AiGateway::modelsFor('AIP-0002');       // declared model ids
 AiGateway::connection('AIP-0002');      // AiProvider model (active only)
 AiGateway::provider('AIP-0002');        // metered driver
+AiGateway::canListModels('AIP-0002');   // does the driver support ListsModels?
+AiGateway::listModels('AIP-0002');      // model ids the remote account offers (not metered)
 ```
 
 ### DTOs
@@ -218,8 +252,11 @@ final class MyProvider extends HttpProvider
 'drivers' => [..., 'my_provider' => MyProvider::class],
 ```
 
+`Korbytes\AiGateway\Contracts\ListsModels` is an optional interface (`listModels(): array`) a driver can implement next to `AiProviderInterface`. Drivers are always handed out wrapped by the usage meter, so use `AiGateway::canListModels()` / `AiGateway::listModels()` rather than `instanceof` on the result of `provider()` (the wrapper itself implements the interface and delegates).
+
 ## Roadmap
 
+- `listModels()` for Gemini (deferred past 0.2.0)
 - Fallback chain across connections/models (today: do it in your application, see [USAGE.md](USAGE.md))
 - Enforcement of `budget_usd` (stored today for reporting; not enforced)
 - Optional Filament resource to manage connections

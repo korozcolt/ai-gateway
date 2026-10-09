@@ -1,6 +1,6 @@
 {
     "name": "korozcolt/ai-gateway",
-    "description": "A multi-provider AI gateway for Laravel: provider connections and encrypted API tokens stored in the database, OpenAI-compatible (OpenRouter, NVIDIA Build, OpenAI, Azure, Mistral, Groq), Gemini and fake drivers, multimodal requests and usage metering.",
+    "description": "A multi-provider AI gateway for Laravel: provider connections and encrypted API tokens stored in the database, Anthropic (Claude), OpenAI, OpenAI-compatible (OpenRouter, NVIDIA Build, Azure, Mistral, Groq), Gemini and fake drivers, multimodal requests and usage metering.",
     "type": "library",
     "license": "MIT",
     "require": {
@@ -55,6 +55,9 @@
         "llm",
         "openrouter",
         "openai",
+        "anthropic",
+        "claude",
+        "chatgpt",
         "gemini",
         "nvidia",
         "gateway",
