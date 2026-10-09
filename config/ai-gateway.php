@@ -1,5 +1,6 @@
 <?php
 
+use Korbytes\AiGateway\Providers\AnthropicProvider;
 use Korbytes\AiGateway\Providers\FakeAiProvider;
 use Korbytes\AiGateway\Providers\GeminiProvider;
 use Korbytes\AiGateway\Providers\OpenAiCompatibleProvider;
@@ -16,6 +17,7 @@ return [
     // Closed list of drivers a connection can use. Adding one = a class implementing AiProviderInterface + a line here.
     // OpenRouter, NVIDIA Build, OpenAI, Azure v1, Mistral, Groq... all use `openai_compatible`.
     'drivers' => [
+        'anthropic' => AnthropicProvider::class,
         'fake' => FakeAiProvider::class,
         'gemini' => GeminiProvider::class,
         'openai_compatible' => OpenAiCompatibleProvider::class,

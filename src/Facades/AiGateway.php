@@ -10,6 +10,8 @@ use Korbytes\AiGateway\AiProviderManager;
  * @method static list<string> modelsFor(string $code)
  * @method static \Korbytes\AiGateway\Models\AiProvider connection(string $code)
  * @method static \Korbytes\AiGateway\Contracts\AiProviderInterface provider(string $code)
+ * @method static bool canListModels(string $code)
+ * @method static list<string> listModels(string $code)
  *
  * @see AiProviderManager
  */

@@ -3,6 +3,7 @@
 namespace Korbytes\AiGateway;
 
 use Korbytes\AiGateway\Contracts\AiProviderInterface;
+use Korbytes\AiGateway\Contracts\ListsModels;
 use Korbytes\AiGateway\Exceptions\AiProviderException;
 use Korbytes\AiGateway\Models\AiProvider;
 
@@ -39,5 +40,32 @@ final class AiProviderManager
     public function provider(string $code): AiProviderInterface
     {
         return $this->registry->make($this->connection($code));
+    }
+
+    /** Whether the driver of the connection can list the remote models (ListsModels). */
+    public function canListModels(string $code): bool
+    {
+        $driver = AiProvider::query()->where('code', $code)->value('driver');
+        $class = is_string($driver) ? config("ai-gateway.drivers.{$driver}") : null;
+
+        return is_string($class) && is_a($class, ListsModels::class, true);
+    }
+
+    /**
+     * Model ids the remote account offers. The consumer decides which ones to store; listing is not metered.
+     *
+     * @return list<string>
+     *
+     * @throws AiProviderException
+     */
+    public function listModels(string $code): array
+    {
+        $provider = $this->provider($code);
+
+        if (! $provider instanceof ListsModels) {
+            throw new AiProviderException(AiFailure::InvalidRequest);
+        }
+
+        return $provider->listModels();
     }
 }

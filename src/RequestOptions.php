@@ -13,6 +13,7 @@ final class RequestOptions
     public const DENIED_KEYS = [
         'model', 'messages', 'stream', 'stream_options', 'max_tokens', 'max_completion_tokens', 'temperature',
         'response_format', 'tools', 'tool_choice', 'functions', 'function_call',
+        'system', 'anthropic-version', 'thinking',
         'contents', 'systeminstruction', 'generationconfig', 'cachedcontent',
         'authorization', 'proxy-authorization', 'headers', 'header', 'api_key', 'apikey', 'api-key',
         'x-api-key', 'x-goog-api-key', 'token', 'access_token', 'bearer', 'key', 'secret', 'cookie',

@@ -5,6 +5,7 @@ namespace Korbytes\AiGateway\Usage;
 use Closure;
 use Korbytes\AiGateway\AiFailure;
 use Korbytes\AiGateway\Contracts\AiProviderInterface;
+use Korbytes\AiGateway\Contracts\ListsModels;
 use Korbytes\AiGateway\Dto\AiRequest;
 use Korbytes\AiGateway\Dto\AiResponse;
 use Korbytes\AiGateway\Dto\AiUsage;
@@ -17,7 +18,7 @@ use Throwable;
  * success and on failure, with the cost computed from the connection price at call time.
  * Never stores prompt or response content.
  */
-final class MeteredProvider implements AiProviderInterface
+final class MeteredProvider implements AiProviderInterface, ListsModels
 {
     /** Unit: nanoseconds per millisecond, for the monotonic clock. */
     private const NS_PER_MS = 1000000;
@@ -64,6 +65,22 @@ final class MeteredProvider implements AiProviderInterface
         $cost = $this->record($request, $response->usage(), 'ok', $response->latencyMs);
 
         return $response->withCost($cost);
+    }
+
+    /**
+     * Delegates to the inner driver when it can list models. Listing is not metered.
+     *
+     * @return list<string>
+     *
+     * @throws AiProviderException invalid_request when the driver cannot list models
+     */
+    public function listModels(): array
+    {
+        if (! $this->inner instanceof ListsModels) {
+            throw new AiProviderException(AiFailure::InvalidRequest);
+        }
+
+        return $this->inner->listModels();
     }
 
     private function record(AiRequest $request, AiUsage $usage, string $outcome, int $latencyMs): ?float

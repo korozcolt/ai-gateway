@@ -28,6 +28,9 @@ abstract class HttpProvider implements AiProviderInterface
     /** HTTP status class boundary: 5xx are server errors. */
     private const SERVER_ERROR_FROM = 500;
 
+    /** Timeout of the optional GET calls (model listing). */
+    private const LIST_TIMEOUT_SECONDS = 30;
+
     public function __construct(protected readonly AiConnection $connection) {}
 
     final public function complete(AiRequest $request): AiResponse
@@ -72,6 +75,40 @@ abstract class HttpProvider implements AiProviderInterface
             finishReason: $finish,
             reportedCostUsd: $usage->reportedCostUsd,
         );
+    }
+
+    /**
+     * GET helper for optional capabilities (model listing). Maps connection errors like complete()
+     * and classifies non-200 answers; never puts the key or the body in an exception.
+     *
+     * @param  array<string, string>  $headers
+     * @param  array<string, scalar>  $query
+     * @return array<string, mixed>
+     *
+     * @throws AiProviderException
+     */
+    protected function getJson(string $url, array $headers, array $query = []): array
+    {
+        if (blank($this->connection->apiKey)) {
+            throw new AiProviderException(AiFailure::MissingCredentials);
+        }
+
+        try {
+            $response = Http::timeout(self::LIST_TIMEOUT_SECONDS)->acceptJson()->withHeaders($headers)->get($url, $query);
+        } catch (ConnectionException $e) {
+            $timedOut = str_contains(strtolower($e->getMessage()), 'timed out') || str_contains($e->getMessage(), 'cURL error 28');
+
+            throw new AiProviderException($timedOut ? AiFailure::Timeout : AiFailure::Connection);
+        }
+
+        $body = $response->json();
+        $body = is_array($body) ? $body : null;
+
+        if ($response->status() !== 200) {
+            throw new AiProviderException($this->classify($response->status(), $body));
+        }
+
+        return $body ?? throw new AiProviderException(AiFailure::BadResponse);
     }
 
     /**
